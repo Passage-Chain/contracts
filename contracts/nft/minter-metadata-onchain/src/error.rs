@@ -81,4 +81,10 @@ pub enum ContractError {
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
+
+    #[error("Migration in progress")]
+    MigrationInProgress{},
+
+    #[error("Migration completed")]
+    MigrationDone{},
 }

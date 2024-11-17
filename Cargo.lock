@@ -959,6 +959,7 @@ dependencies = [
  "cw2 0.16.0",
  "cw721 0.13.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw721-base 0.13.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pg721",
  "pg721-metadata-onchain",
  "schemars",
  "serde",

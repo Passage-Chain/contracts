@@ -30,6 +30,8 @@ pub enum ExecuteMsg {
     MintTo { recipient: String },
     MintFor { token_id: u32, recipient: String },
     Withdraw { recipient: String },
+    MigrateData {migrations: Migration},
+    MigrationDone{},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -108,4 +110,17 @@ pub struct TokenMintsResponse {
 pub struct TokenMetadata {
     pub token_id: u32,
     pub metadata: Metadata
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Migration{
+    pub tokens: Option<Vec<TokenMint>>,
+    pub mintable_tokens: Option<Vec<u32>>,
+    pub minters: Option<Vec<Minter>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Minter{
+    pub address: String,
+    pub mints: u32
 }

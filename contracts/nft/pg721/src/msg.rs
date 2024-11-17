@@ -1,6 +1,6 @@
 use crate::{state::CollectionInfo, ContractError};
 use cosmwasm_std::{Decimal, Empty};
-use cw721_base::msg::QueryMsg as Cw721QueryMsg;
+use cw721_base::{msg::QueryMsg as Cw721QueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

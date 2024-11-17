@@ -35,6 +35,18 @@ pub enum ContractError {
 
     #[error("{0}")]
     Parse(#[from] ParseError),
+
+    #[error("Migration failed {0}")]
+    MigrationFailed(Cw721ContractError),
+
+    #[error("Mint failed for token id {0}")]
+    MintFalied(String),
+
+    #[error("Migration in progress")]
+    MigrationInProgress{},
+
+    #[error("Migration completed")]
+    MigrationDone{},
 }
 
 impl From<ContractError> for Cw721ContractError {
@@ -43,6 +55,8 @@ impl From<ContractError> for Cw721ContractError {
             ContractError::Unauthorized {} => Cw721ContractError::Unauthorized {},
             ContractError::Claimed {} => Cw721ContractError::Claimed {},
             ContractError::Expired {} => Cw721ContractError::Expired {},
+            ContractError::MigrationInProgress {  }=>Cw721ContractError::Std(StdError::GenericErr { msg: "migration in progress".to_string() }),
+            ContractError::MigrationDone {  }=>Cw721ContractError::Std(StdError::GenericErr { msg: "migration completed: cannont start again".to_string() }),
             _ => unreachable!("cannot convert {:?} to Cw721ContractError", err),
         }
     }
