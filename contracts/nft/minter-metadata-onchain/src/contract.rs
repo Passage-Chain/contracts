@@ -12,12 +12,13 @@ use cw_utils::{may_pay, parse_reply_instantiate_data};
 use pg721_metadata_onchain::msg::{
     InstantiateMsg as Pg721InstantiateMsg, ExecuteMsg as Pg721ExecuteMsg, Metadata
 };
+use pg721::state::{MIGRATION_STATUS,MigrationStatus,migration_done,migration_status};
 
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MintCountResponse, MintPriceResponse,
     QueryMsg, StartTimeResponse, TokenMetadata, TokenMintResponse, TokenMintsResponse,
-    NumMintedResponse, NumRemainingResponse, MigrateMsg
+    NumMintedResponse, NumRemainingResponse, MigrateMsg, Minter
 };
 use crate::state::{
     CONFIG, MINTER_ADDRS, CW721_ADDRESS, MINTABLE_TOKEN_IDS,
@@ -89,6 +90,12 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
     MINTABLE_TOKEN_IDS.save(deps.storage, &vec![])?;
+    
+    let migration_status=MigrationStatus{
+        done: false,
+    };
+
+    MIGRATION_STATUS.save(deps.storage, &migration_status)?;
 
     let response = match msg.cw721_address {
         Some(_addr) => {
@@ -108,8 +115,8 @@ pub fn instantiate(
                         minter: env.contract.address.to_string(),
                         collection_info: cw721_instantiate_msg.collection_info,
                     })?,
-                    funds: info.funds,
-                    admin: Some(info.sender.to_string()),
+                    funds: info.funds.clone(),
+                    admin: Some(info.sender.clone().to_string()),
                     label: String::from("Fixed price minter"),
                 }
                 .into(),
@@ -138,24 +145,56 @@ pub fn execute(
     let api = deps.api;
 
     match msg {
-        ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => execute_upsert_token_metadatas(deps, info, token_metadatas ),
-        ExecuteMsg::Mint {} => execute_mint_sender(deps, env, info),
-        ExecuteMsg::UpdateStartTime(time) => execute_update_start_time(deps, env, info, time),
-        ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
-            execute_update_per_address_limit(deps, env, info, per_address_limit)
+        ExecuteMsg::MigrateData { migrations } => migrate_tokens(deps, info, migrations.tokens, migrations.mintable_tokens, migrations.minters),
+        ExecuteMsg::MigrationDone {  } => migrated(deps, info),
+        _ => {
+            if migration_status(deps.as_ref()){
+                match msg {
+                    ExecuteMsg::UpsertTokenMetadatas { token_metadatas } => execute_upsert_token_metadatas(deps, info, token_metadatas ),
+                    ExecuteMsg::Mint {} => execute_mint_sender(deps, env, info),
+                    ExecuteMsg::UpdateStartTime(time) => execute_update_start_time(deps, env, info, time),
+                    ExecuteMsg::UpdatePerAddressLimit { per_address_limit } => {
+                        execute_update_per_address_limit(deps, env, info, per_address_limit)
+                    }
+                    ExecuteMsg::UpdateUnitPrice { unit_price } => execute_update_unit_price(deps, env, info, unit_price),
+                    ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
+                    ExecuteMsg::MintFor {
+                        token_id,
+                        recipient,
+                    } => execute_mint_for(deps, env, info, token_id, recipient),
+                    ExecuteMsg::SetAdmin { admin } => execute_set_admin(deps, info, api.addr_validate(&admin)?),
+                    ExecuteMsg::SetWhitelist { whitelist } => {
+                        execute_set_whitelist(deps, env, info, &whitelist)
+                    }
+                    ExecuteMsg::Withdraw { recipient } => execute_withdraw(deps, env, info, api.addr_validate(&recipient)?),
+                    ExecuteMsg::MigrateData { migrations:_ } => return Err(ContractError::MigrationDone {  }),
+                    ExecuteMsg::MigrationDone {  } => migrated(deps, info),
+                }
+            } else {
+                return Err(ContractError::MigrationInProgress {  })
+            }
         }
-        ExecuteMsg::UpdateUnitPrice { unit_price } => execute_update_unit_price(deps, env, info, unit_price),
-        ExecuteMsg::MintTo { recipient } => execute_mint_to(deps, env, info, recipient),
-        ExecuteMsg::MintFor {
-            token_id,
-            recipient,
-        } => execute_mint_for(deps, env, info, token_id, recipient),
-        ExecuteMsg::SetAdmin { admin } => execute_set_admin(deps, info, api.addr_validate(&admin)?),
-        ExecuteMsg::SetWhitelist { whitelist } => {
-            execute_set_whitelist(deps, env, info, &whitelist)
-        }
-        ExecuteMsg::Withdraw { recipient } => execute_withdraw(deps, env, info, api.addr_validate(&recipient)?),
     }
+}
+
+fn migrated(
+    deps: DepsMut,
+    info: MessageInfo,
+)->Result<Response,ContractError>{
+
+    let config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    };
+
+    migration_done(deps)?;
+    
+    Ok(Response::new()
+        .add_attribute("action", "migration_done")
+        .add_attribute("marked done as", true.to_string())
+    )
 }
 
 pub fn execute_upsert_token_metadatas(
@@ -203,6 +242,86 @@ pub fn execute_upsert_token_metadatas(
         .into_iter().map(|token_id| token_id.to_string()).collect();
     let event = Event::new("upsert-metadata")
         .add_attribute("append-token-ids", append_token_ids_fmt.join(", "));
+    response.events.push(event);
+
+    Ok(response)
+}
+
+fn migrate_tokens(
+    deps: DepsMut,
+    info: MessageInfo,
+    tokens: Option<Vec<TokenMint>>,
+    mintable_ids: Option<Vec<u32>>,
+    minters: Option<Vec<Minter>>
+) -> Result<Response, ContractError> {
+
+    if migration_status(deps.as_ref()){
+        return Err(ContractError::MigrationDone {  });
+    }
+    
+    let config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized(
+            "Sender is not an admin".to_owned(),
+        ));
+    };
+
+    // migrate token mints
+    let mut append_token_ids = vec![];
+    if tokens.is_some(){
+        for token in tokens.unwrap_or_default() {
+            if token.token_id == 0 {
+                return Err(ContractError::InvalidTokenId {});
+            }
+            token_mints().update(
+                deps.storage,
+                token.token_id.clone(),
+                |existing_token_mint| -> Result<TokenMint, ContractError> {
+                    if let Some(_existing_token_mint) = existing_token_mint {
+                        if let true = _existing_token_mint.is_minted {
+                            return Err(ContractError::TokenAlreadyMinted { token_id: _existing_token_mint.token_id });
+                        }
+                    };
+                    Ok(TokenMint {
+                        token_id: token.clone().token_id,
+                        metadata: token.clone().metadata,
+                        is_minted: token.is_minted,
+                    })
+                }
+            )?;
+            append_token_ids.push(token.token_id);
+        }    
+    }
+
+    // migrate minters
+    if minters.is_some(){
+        for minter in minters.clone().unwrap_or_default() {
+            MINTER_ADDRS.save(deps.storage, Addr::unchecked(minter.address), &minter.mints)?;    
+        }
+    }
+    
+
+    // migrate mintable tokens
+    if mintable_ids.is_some(){
+        let mut mintable_token_ids = MINTABLE_TOKEN_IDS.load(deps.storage)?;
+       mintable_token_ids.append(&mut &mut mintable_ids.clone().unwrap_or_default());
+        MINTABLE_TOKEN_IDS.save(deps.storage, &mintable_token_ids)?;
+    }
+    
+
+
+    // response
+    let mut response = Response::new();
+    let append_token_ids_fmt: Vec<String> = append_token_ids
+        .into_iter().map(|token_id| token_id.to_string()).collect();
+    let mut event = Event::new("migrate data")
+        .add_attribute("mintable-ids",mintable_ids.is_some().to_string())
+        .add_attribute("minters", minters.is_some().to_string());
+    
+    if append_token_ids_fmt.len()>0{
+        event=event.add_attribute("token-ids",append_token_ids_fmt.join(","))
+    }
+
     response.events.push(event);
 
     Ok(response)

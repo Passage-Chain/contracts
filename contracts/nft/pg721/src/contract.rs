@@ -11,7 +11,7 @@ use url::Url;
 use crate::msg::{
     CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RoyaltyInfoResponse,
 };
-use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO};
+use crate::state::{CollectionInfo, RoyaltyInfo, COLLECTION_INFO, MIGRATION_STATUS, MigrationStatus};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:pg-721";
@@ -75,6 +75,12 @@ pub fn instantiate(
 
     COLLECTION_INFO.save(deps.storage, &collection_info)?;
 
+    let migration_status=MigrationStatus{
+        done: false,
+    };
+
+    MIGRATION_STATUS.save(deps.storage, &migration_status)?;
+    
     Ok(Response::default()
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
@@ -145,7 +151,7 @@ mod tests {
                 royalty_info: royalty_info,
             },
         };
-        let info = mock_info("creator", &coins(0, NATIVE_DENOM));
+        let info = mock_info("minter", &coins(0, NATIVE_DENOM));
         let res = instantiate(deps, mock_env(), info.clone(), msg).unwrap();
         assert!(res.attributes[0].eq(&Attribute::new("action", "instantiate")));
         assert!(res.attributes[1].eq(&Attribute::new("contract_name", CONTRACT_NAME)));

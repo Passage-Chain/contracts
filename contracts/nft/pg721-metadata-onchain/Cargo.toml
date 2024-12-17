@@ -1,6 +1,6 @@
 [package]
 name = "pg721-metadata-onchain"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Tasio Victoria <tasio@envadiv.com>"]
 edition = "2018"
 description = "Passage NFT collection contract with the metadata stored onchain"

@@ -12,7 +12,6 @@ use cw721_base::{
     MinterResponse
 };
 use pg721_metadata_onchain::msg::{CollectionInfoResponse, InstantiateMsg, QueryMsg, ExecuteMsg};
-
 fn main() {
     let mut out_dir = current_dir().unwrap();
     out_dir.push("schema");
