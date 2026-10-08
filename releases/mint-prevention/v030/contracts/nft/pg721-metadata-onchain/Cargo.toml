@@ -1,0 +1,50 @@
+[package]
+name = "pg721-metadata-onchain"
+version = "0.3.0"
+authors = ["Tasio Victoria <tasio@envadiv.com>"]
+edition = "2018"
+description = "Passage NFT collection contract with the metadata stored onchain"
+license = "Apache-2.0"
+repository = "https://github.com/envadiv/passage-contracts"
+homepage = "https://https://passage3d.com"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-std = { version = "1.0.0-beta7" }
+cosmwasm-storage = { version = "1.0.0-beta7" }
+cw-storage-plus = "0.13.1"
+cw-utils = "0.13.1"
+cw2 = "0.13.1"
+schemars = "0.8.8"
+serde = { version = "1.0.133", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.30" }
+url = "=2.2.2"
+cw721 = "0.13.1"
+cw721-base = { version = "0.13.1", features = ["library"] }
+pg721 = { path = "../pg721", features = ["library"] }
+
+[dev-dependencies]
+cw-multi-test = "=0.13.4"
+serde_json = "=1.0.140"
+hex = "=0.4.3"
+minter-metadata-onchain = { path = "../minter-metadata-onchain", features = ["library"] }
+cosmwasm-schema = { version = "1.0.0-beta7" }
+
+[profile.release]
+overflow-checks = true

@@ -1,0 +1,107 @@
+{
+  "utc": "2026-10-08T17:30:42.878795+00:00",
+  "signed_committed_transactions": 109,
+  "check_tx_rejections": 20,
+  "fee_rate": "12.5upasg/gas",
+  "production_block_max_gas": 100000000,
+  "production_max_tx_bytes": 1048576,
+  "source_max_wasm_bytes": 819200,
+  "artifacts": {
+    "retired-v020.wasm": {
+      "sha256": "da009a69d2186b20f2274224c0e4e0a48e9e78da3c27cae9fa1da20f808bbbb3",
+      "bytes": 694243
+    },
+    "retired-v030.wasm": {
+      "sha256": "ba7e79695cd848c14e3a83891725aeefe1872f90c5bd6d99d69697979f928f28",
+      "bytes": 694243
+    }
+  },
+  "uploads": {
+    "count": 2,
+    "max_total_gas": 9090282,
+    "max_transaction_bytes": 694513
+  },
+  "migrations": {
+    "count": 17,
+    "max_total_gas": 145406,
+    "max_transaction_bytes": 545
+  },
+  "rollback": {
+    "count": 17,
+    "max_total_gas": 137530,
+    "max_transaction_bytes": 411
+  },
+  "accepting_send": {
+    "count": 2,
+    "max_total_gas": 248556,
+    "max_transaction_bytes": 449
+  },
+  "purchase": {
+    "count": 1,
+    "max_total_gas": 290053,
+    "max_transaction_bytes": 371
+  },
+  "persistent": {
+    "status": "PASS_FOR_SUPPORTED_NFT_TRANSACTIONS",
+    "rawTransactions": 109,
+    "seededNfts": 9759,
+    "projectedTransactions": 102,
+    "metadataUnchanged": 17,
+    "threeMigrationIntervals": 17,
+    "holderTransfers": 2,
+    "acceptedSendPersistentProjector": 2,
+    "testOnlyReceiverControls": [
+      {
+        "label": "upload-receiver-fixture",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      },
+      {
+        "label": "instantiate-receiver-false",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      },
+      {
+        "label": "instantiate-receiver-true",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      },
+      {
+        "label": "send-accepted-pasg1ltd0maxmte3xf4zshta9j5djrq9cl692ctsp9u5q0p9wss0f5lmsfnev6k",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      },
+      {
+        "label": "return-from-receiver-pasg1ltd0maxmte3xf4zshta9j5djrq9cl692ctsp9u5q0p9wss0f5lmsfnev6k",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      },
+      {
+        "label": "send-accepted-pasg1f5u0qsu76gjnwrm6pmvztwjt8n98jq7qpfgugjq3fxrvccczxudqhny4j2",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      },
+      {
+        "label": "return-from-receiver-pasg1f5u0qsu76gjnwrm6pmvztwjt8n98jq7qpfgugjq3fxrvccczxudqhny4j2",
+        "reason": "test-only receiver controls; raw persisted; explicit fixture IGNORE, domain projection not claimed"
+      }
+    ]
+  },
+  "purchase_cases": [
+    {
+      "label": "purchase-rejected-gas40000",
+      "stage": "check_tx_rejected",
+      "fee": "0upasg",
+      "sender_balance_delta": null,
+      "code": 11
+    },
+    {
+      "label": "purchase-rejected-gas100000",
+      "stage": "committed",
+      "fee": "1250000upasg",
+      "sender_balance_delta": "1250000",
+      "code": 11
+    },
+    {
+      "label": "purchase-rejected-gas500000",
+      "stage": "committed",
+      "fee": "6250000upasg",
+      "sender_balance_delta": "6250000",
+      "code": 5
+    }
+  ]
+}
