@@ -1,0 +1,19 @@
+{
+  "base_commit": "3f63cac59e615db1d39bec09974b2b2a6ee231e4",
+  "families": {
+    "v020": {
+      "sha256": "da009a69d2186b20f2274224c0e4e0a48e9e78da3c27cae9fa1da20f808bbbb3",
+      "matches_tested": true,
+      "bytes": 694243,
+      "synthetic_tests": 4
+    },
+    "v030": {
+      "sha256": "ba7e79695cd848c14e3a83891725aeefe1872f90c5bd6d99d69697979f928f28",
+      "matches_tested": true,
+      "bytes": 694243,
+      "synthetic_tests": 4
+    }
+  },
+  "private_fixtures_included": false,
+  "changed_runtime_binaries": false
+}

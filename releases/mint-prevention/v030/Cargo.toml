@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["contracts/nft/pg721", "contracts/nft/pg721-metadata-onchain", "contracts/nft/minter-metadata-onchain", "contracts/nft/whitelist"]
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+overflow-checks = true
+opt-level = 3
+strip = "symbols"

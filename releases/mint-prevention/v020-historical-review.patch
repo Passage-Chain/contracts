@@ -1,0 +1,115 @@
+--- historical/contracts/nft/pg721-metadata-onchain/src/contract.rs
++++ v020/contracts/nft/pg721-metadata-onchain/src/contract.rs
+@@ -1,6 +1,6 @@
+ #[cfg(not(feature = "library"))]
+ use cosmwasm_std::entry_point;
+-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, Response, Event};
++use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult, Response};
+ use cw2::{set_contract_version, get_contract_version};
+ 
+ use crate::ContractError;
+@@ -96,6 +96,11 @@
+     info: MessageInfo,
+     msg: ExecuteMsg,
+ ) -> Result<Response, BaseError> {
++    // Reject before authorization, import iteration, or any storage mutation.
++    // Shared minters remain unchanged; every caller is denied at this NFT.
++    if matches!(&msg, ExecuteMsg::Mint(_) | ExecuteMsg::Migrate { .. }) {
++        return Err(BaseError::Std(cosmwasm_std::StdError::generic_err("NFT minting retired")));
++    }
+     match msg{
+         ExecuteMsg::Migrate{migrations}=>migrate_data(deps,env,info,migrations),
+         ExecuteMsg::MigrationDone{}=>migrated(deps, info),
+@@ -200,27 +205,25 @@
+ }
+ 
+ #[cfg_attr(not(feature = "library"), entry_point)]
+-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+-    let storage_version: &str = &get_contract_version(deps.storage)?.version.to_string();
+-
+-    let mut response = Response::new();
+-    if storage_version < CONTRACT_VERSION {
+-        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+-        let minter = deps.api.addr_validate(&msg.minter)?;
+-        Pg721MetadataContract::default()
+-            .minter
+-            .save(deps.storage, &minter)?;
+-
+-        let event = Event::new("migrate-storage")
+-            .add_attribute("new-minter", minter.to_string());
+-        response.events.push(event);
+-    }
+-
+-    let event = Event::new("contract-migrated")
+-        .add_attribute("prev-version", storage_version)
+-        .add_attribute("next-version", CONTRACT_VERSION);
+-    response.events.push(event);
+-    Ok(response)
++pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
++    // Wasmd authorizes admin/governance. These independent guards prevent
++    // accidental use on legitimate collections or a changed snapshot.
++    if !crate::retirement_targets::TARGETS.contains(&env.contract.address.as_str()) {
++        return Err(cosmwasm_std::StdError::generic_err("not a reviewed retirement target").into());
++    }
++    let version = get_contract_version(deps.storage)?;
++    let nft = Pg721MetadataContract::default();
++    if version.contract != CONTRACT_NAME || version.version != CONTRACT_VERSION
++        || version.version != msg.expected_version
++        || nft.minter.load(deps.storage)?.as_str() != msg.minter
++        || nft.token_count(deps.storage)? != msg.expected_count
++        || MIGRATION_STATUS.load(deps.storage)?.done != msg.expected_migration_done {
++        return Err(cosmwasm_std::StdError::generic_err("retirement snapshot precondition failed").into());
++    }
++    // Deliberately write no storage: preserve CW2, minter, migration gate,
++    // token/index state, collection metadata and rollback compatibility.
++    Ok(Response::new().add_attribute("action", "mint_retirement_verified")
++        .add_attribute("original_version", version.version))
+ }
+ 
+ #[cfg(test)]
+@@ -310,3 +313,4 @@
+         );
+     }
+ }
++
+--- historical/contracts/nft/pg721-metadata-onchain/src/msg.rs
++++ v020/contracts/nft/pg721-metadata-onchain/src/msg.rs
+@@ -88,5 +88,8 @@
+ 
+ #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+ pub struct MigrateMsg {
++    pub expected_version: String,
++    pub expected_count: u64,
++    pub expected_migration_done: bool,
+     pub minter: String,
+ }--- historical/contracts/nft/pg721-metadata-onchain/src/lib.rs
++++ v020/contracts/nft/pg721-metadata-onchain/src/lib.rs
+@@ -1,3 +1,6 @@
+ pub mod contract;
+ pub mod msg;
+-pub use pg721::{state, ContractError};+pub use pg721::{state, ContractError};
++pub mod retirement_targets;
++#[cfg(not(target_arch = "wasm32"))]
++pub mod baseline;
+--- historical/contracts/nft/pg721-metadata-onchain/src/retirement_targets.rs
++++ v020/contracts/nft/pg721-metadata-onchain/src/retirement_targets.rs
+@@ -0,0 +1,19 @@
++pub const TARGETS: &[&str] = &[
++    "pasg14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9sxwr2um",
++    "pasg1suhgf5svhu4usrurvxzlgn54ksxmn8gljarjtxqnapv8kjnp4nrsem0l5j",
++    "pasg1yyca08xqdgvjz0psg56z67ejh9xms6l436u8y58m82npdqqhmmtq5lm6kg",
++    "pasg1yw4xvtc43me9scqfr2jr2gzvcxd3a9y4eq7gaukreugw2yd2f8ts47cu5m",
++    "pasg1cnuw3f076wgdyahssdkd0g3nr96ckq8cwa2mh029fn5mgf2fmcmsvjjdxf",
++    "pasg1ltd0maxmte3xf4zshta9j5djrq9cl692ctsp9u5q0p9wss0f5lmsfnev6k",
++    "pasg1stwdtk6ja0705v8qmtukcp4vd422p5vy4jr5wdc4qk44c57k955qfkt8wd",
++    "pasg14rse3e7rkc3qt7drmlulwlkrlzqvh7hv277zv05kyfuwl74udx5s5gxtz3",
++    "pasg1ypk8p7c82whs9xdja6ku7q6slzj8kvfwkgxnyeuevhtf03fteylqj62a46",
++    "pasg1xwu4c2apw2nxd75leph52aaw85ryhpfqcwfqtyjtz38tvjln7x7qgf6lvk",
++    "pasg1ynu9nn0v9sn8evdyex007ptvcnqdhuluckx6n69aum4fs9jsrcaqr7y38k",
++    "pasg1f5u0qsu76gjnwrm6pmvztwjt8n98jq7qpfgugjq3fxrvccczxudqhny4j2",
++    "pasg1ez4us9vdu7ly0sqle43c55qrp85vm76lz6n26yjsustl7fhz0t9s9ag6ea",
++    "pasg16t06zt2ew6tajsyw074f4srd3exthfc35k0u29dw4uz6w4zuf9msr8xjsj",
++    "pasg189sfhaxxghg8q027lns9j7744ksrxuke35y3az7hyjcthnzf48aqxrnsvs",
++    "pasg18nm6xkchnxjvgsdxhkerfstfssqsyam8acfy346nawur9ch3849qsv96qv",
++    "pasg17d4ec62nhzy62cw2apuxds0h9jq24zxvss33hr8gx65e9n605musrvk9u4",
++ ];
